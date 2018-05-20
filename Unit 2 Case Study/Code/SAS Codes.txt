@@ -1,0 +1,71 @@
+
+/*********** Import Raw Data **************/
+
+proc import datafile = '/home/sbhattacharyya1/Raw Data Sources/carmpgdata.txt'
+	out = carmpg
+	dbms = dlm replace;
+	getnames = Yes;
+	delimiter='09'x;
+run;
+
+proc print data = carmpg;
+run;
+
+/*********** Exploratory Data Analysis **************/
+
+proc means data = carmpg n nmiss mean std stderr q1 median q3 clm;
+	var mpg cylinders size hp weight accel eng_type;
+run;
+
+proc sgscatter data = carmpg;
+	matrix mpg cylinders size hp weight accel / group = eng_type diagonal = (histogram);
+run;
+
+proc corr data = carmpg;
+run;
+
+/*********** Basic Model with Raw Data (Listwise Deletion) *************/
+
+proc reg data = carmpg;
+   model mpg = cylinders size hp weight accel eng_type;
+   output out = model_listwise;
+RUN;
+
+/*********** Missing Data Pattern Identification *************/
+
+ods select misspattern;
+proc mi data = carmpg nimpute = 0;
+	var mpg cylinders size hp weight accel eng_type;
+run;
+
+/*********** Imputation for Missing Data *************/
+
+proc mi data = carmpg out = miout seed = 100000;
+	var cylinders size hp weight accel eng_type;
+	mcmc;
+run;
+
+proc export data = miout
+   outfile = '/home/sbhattacharyya1/Output Data/miout.csv'
+   dbms=csv
+   replace;
+run;
+
+/*********** Models with Imputed Data *************/
+
+proc reg data = miout outest = outreg covout;
+   model mpg = cylinders size hp weight accel eng_type;
+   by _Imputation_;
+run;
+
+proc export data = outreg
+   outfile = '/home/sbhattacharyya1/Output Data/outreg.csv'
+   dbms=csv
+   replace;
+run;
+
+/************ Combined Model from 25 Imputed Models **************/
+
+proc mianalyze data = outreg;
+	modeleffects cylinders size hp weight accel eng_type intercept;
+run;
